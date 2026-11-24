@@ -33,7 +33,7 @@ button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #app{position:fixed;left:0;top:var(--top);width:100%;height:var(--vh);display:grid;
-  grid-template:"bar" auto "ed" minmax(0,1fr) "err" auto "sym" auto "con" var(--conh)/minmax(0,1fr);
+  grid-template:"bar" auto "tabs" auto "ed" minmax(0,1fr) "err" auto "sym" auto "con" var(--conh)/minmax(0,1fr);
   padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
 #app.conopen{--conh:min(46%,420px)}
 .bar{grid-area:bar;display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--panel)}
@@ -49,6 +49,17 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .run{background:var(--run);color:var(--run-ink);border-color:transparent}
 .stop{color:var(--danger)}
 .btn svg{width:16px;height:16px;fill:currentColor}
+#tabs{grid-area:tabs;display:flex;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line);scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{display:flex;align-items:center;flex:none;max-width:220px;border-right:1px solid var(--line)}
+.tab.on{background:var(--code-bg);box-shadow:inset 0 -2px var(--run)}
+.tn{border:0;background:none;height:40px;padding:0 2px 0 12px;font:14px var(--mono);display:flex;align-items:center;gap:6px;overflow:hidden;color:var(--muted)}
+.tab.on .tn{color:var(--ink)}
+.tn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn .dot{margin-right:3px}
+.tc{width:34px;height:40px;border:0;background:none;color:var(--muted);font-size:18px;flex:none;border-radius:6px}
+.tc:hover{color:var(--danger)}
+#tabAdd{flex:none;width:44px;height:40px;border:0;background:none;font-size:22px;color:var(--muted)}
 #ed{grid-area:ed;overflow:hidden;background:var(--code-bg)}
 #errbar{grid-area:err;border:0;text-align:left;padding:8px 12px;background:var(--err-line);color:var(--danger);font-size:14px;font-weight:600;border-top:1px solid var(--danger)}
 #errbar[hidden]{display:none}
@@ -101,13 +112,13 @@ dialog input[type=range]{width:100%;accent-color:var(--accent);height:32px}
 #toast[hidden]{display:none}
 .wideonly{display:none}
 @media (min-width:600px){
-  #app{grid-template:"bar bar" auto "ed con" minmax(0,1fr) "err con" auto "sym con" auto/minmax(0,1fr) minmax(300px,40%);padding-bottom:env(safe-area-inset-bottom)}
+  #app{grid-template:"bar bar" auto "tabs con" auto "ed con" minmax(0,1fr) "err con" auto "sym con" auto/minmax(0,1fr) minmax(300px,40%);padding-bottom:env(safe-area-inset-bottom)}
   #con{border-top:0;border-left:1px solid var(--line);padding-bottom:0}
   .lbl .chev{display:none}
   .wideonly{display:inline-flex}
 }
 @media (min-width:1000px){
-  #app{grid-template:"bar bar bar" auto "side ed con" minmax(0,1fr) "side err con" auto "side sym con" auto/260px minmax(0,1fr) minmax(340px,38%)}
+  #app{grid-template:"bar bar bar" auto "side tabs con" auto "side ed con" minmax(0,1fr) "side err con" auto "side sym con" auto/260px minmax(0,1fr) minmax(340px,38%)}
   #side{display:flex;grid-area:side;position:static}
   #side.drawer{position:static;box-shadow:none;width:auto;height:auto;padding-top:0}
   #bFiles,#closeSide{display:none}
@@ -137,6 +148,7 @@ dialog input[type=range]{width:100%;accent-color:var(--accent);height:32px}
     </div>
     <div id="files"></div>
   </aside>
+  <nav id="tabs" aria-label="Tabs"></nav>
   <div id="ed"></div>
   <button id="errbar" hidden></button>
   <div id="sym" role="toolbar" aria-label="Symbols"></div>
@@ -149,8 +161,8 @@ dialog input[type=range]{width:100%;accent-color:var(--accent);height:32px}
     <pre id="out" aria-live="polite"></pre>
     <form id="inrow" hidden><input id="inp" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send"><button class="btn run" data-t="send"></button></form>
   </section>
+  <div id="scrim" hidden></div>
 </div>
-<div id="scrim" hidden></div>
 <div id="menu" hidden role="menu"></div>
 <dialog id="dlg"></dialog>
 <div id="toast" hidden></div>
@@ -171,7 +183,7 @@ const T = UK ? {
   overwrite:"Перезаписати",noStore:"Сховище браузера недоступне: файли не збережуться після закриття сторінки.",root:"Корінь",
   modeJ:"input(): інтерактивний (програма чекає на ввід).",modeR:"input(): у цьому браузері програма після кожного вводу тихо перезапускається з уже введеними значеннями. Вивід і random не змінюються, але time/datetime можуть відрізнятися.",
   storeInfo:"Файли зберігаються лише в цьому браузері на цьому пристрої.",badName:"Некоректне ім'я",copyFail:"Не вдалося скопіювати — виділіть текст вручну",
-  imported:"Імпортовано: {n}",files_n:"Файлів: {n}",close:"Закрити",sample:"# Ласкаво просимо до PyEditor Web!\n# Натисніть «Запустити» або Ctrl/⌘+Enter.\n\nname = input(\"Як вас звати? \")\nfor i in range(3):\n    print(f\"Привіт, {name}! #{i + 1}\")\n"
+  imported:"Імпортовано: {n}",newTab:"Нова вкладка",closeTab:"Закрити вкладку",files_n:"Файлів: {n}",close:"Закрити",sample:"# Ласкаво просимо до PyEditor Web!\n# Натисніть «Запустити» або Ctrl/⌘+Enter.\n\nname = input(\"Як вас звати? \")\nfor i in range(3):\n    print(f\"Привіт, {name}! #{i + 1}\")\n"
 } : {
   run:"Run",stop:"Stop",files:"Files",new:"New",save:"Save",saveAs:"Save as…",open:"Open",examples:"Examples",
   import:"Import",copyCode:"Copy code",settings:"Settings",console:"Console",send:"OK",undo:"Undo",redo:"Redo",
@@ -184,7 +196,7 @@ const T = UK ? {
   overwrite:"Overwrite",noStore:"Browser storage is unavailable: files will not survive closing the page.",root:"Root",
   modeJ:"input(): interactive (the program waits for input).",modeR:"input(): in this browser the program quietly re-runs after each entry with the values typed so far. Output and random stay the same; time/datetime may differ.",
   storeInfo:"Files are stored only in this browser on this device.",badName:"Invalid name",copyFail:"Copy failed — select the text manually",
-  imported:"Imported: {n}",files_n:"Files: {n}",close:"Close",sample:"# Welcome to PyEditor Web!\n# Press Run or Ctrl/⌘+Enter.\n\nname = input(\"What's your name? \")\nfor i in range(3):\n    print(f\"Hello, {name}! #{i + 1}\")\n"
+  imported:"Imported: {n}",newTab:"New tab",closeTab:"Close tab",files_n:"Files: {n}",close:"Close",sample:"# Welcome to PyEditor Web!\n# Press Run or Ctrl/⌘+Enter.\n\nname = input(\"What's your name? \")\nfor i in range(3):\n    print(f\"Hello, {name}! #{i + 1}\")\n"
 };
 const tr = (k, o = {}) => (T[k] || k).replace(/\{(\w)\}/g, (_, x) => o[x] ?? "");
 document.documentElement.lang = UK ? "uk" : "en";
@@ -236,19 +248,73 @@ const bRun = $("bRun"), bStop = $("bStop"), pystat = $("pystat"), side = $("side
 const narrow = matchMedia("(max-width:599px)"), wide = matchMedia("(min-width:1000px)");
 
 /* ---------- editor ---------- */
+// Active tab lives in cur/savedText + the editor's state; inactive tabs are kept in `tabs`.
 let cur = null, savedText = "", draftTimer = 0, synTimer = 0, synSeq = 0;
+let tabs = [], active = 0, tabSeq = 0;
 const draft = ls.get(K.draft, null);
 const ed = PyEd.create($("ed"), {
-  doc: draft ? draft.text : T.sample, fontSize: prefs.font,
+  fontSize: prefs.font,
   onChange() { refreshTitle(); clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 700); scheduleCheck(); },
   onRun: () => runCode(), onSave: () => save(),
 });
-if (draft) { cur = draft.file || null; savedText = draft.saved ?? draft.text; if (cur && !(cur in files)) cur = null; }
-else savedText = T.sample;
+const mkTab = (text, path, saved = text) => ({id: ++tabSeq, path, saved, state: ed.newState(text), dirty: text !== saved});
+{
+  // restore all tabs (older drafts held a single buffer)
+  const list = draft && Array.isArray(draft.tabs) ? draft.tabs : draft ? [draft] : [{text: T.sample, file: null, saved: T.sample}];
+  for (const d of list) {
+    let path = d.file || null; if (path && !(path in files)) path = null;
+    tabs.push(mkTab(String(d.text ?? ""), path, d.saved ?? d.text));
+  }
+  active = Math.min(Math.max(0, (draft && draft.active) | 0), tabs.length - 1);
+}
 out.style.fontSize = prefs.font + "px";
-function saveDraft() { ls.set(K.draft, {text: ed.getText(), file: cur, saved: savedText}); }
+function syncTab() { const t = tabs[active]; t.path = cur; t.saved = savedText; t.state = ed.getState(); t.dirty = dirty(); }
+function saveDraft() {
+  syncTab();
+  ls.set(K.draft, {active, tabs: tabs.map(t => ({text: t.state.doc.toString(), file: t.path, saved: t.saved}))});
+}
 const dirty = () => ed.getText() !== savedText;
-function refreshTitle() { $("fname").textContent = cur || T.untitled; $("dirty").hidden = !dirty(); renderFiles(); }
+const leaf = p => p ? p.slice(p.lastIndexOf("/") + 1) : T.untitled;
+function refreshTitle() { $("fname").textContent = cur || T.untitled; $("dirty").hidden = !dirty(); renderTabs(); renderFiles(); }
+function renderTabs() {
+  const bar = $("tabs"), x = bar.scrollLeft;
+  bar.replaceChildren();
+  tabs.forEach((t, i) => {
+    const on = i === active, path = on ? cur : t.path, isDirty = on ? dirty() : t.dirty;
+    const name = el("button", {className: "tn", title: path || T.untitled, type: "button"}, [el("span", {textContent: leaf(path)})]);
+    if (isDirty) name.append(el("i", {className: "dot"}));
+    name.onclick = () => switchTab(i);
+    const cl = el("button", {className: "tc", type: "button", textContent: "×", ariaLabel: T.closeTab + " " + leaf(path)});
+    cl.onclick = () => closeTab(i);
+    const tab = el("div", {className: "tab" + (on ? " on" : ""), role: "tab", ariaSelected: String(on)}, [name, cl]);
+    tab.addEventListener("auxclick", e => { if (e.button === 1) { e.preventDefault(); closeTab(i); } });
+    bar.append(tab);
+  });
+  const add = el("button", {id: "tabAdd", type: "button", textContent: "+", ariaLabel: T.newTab, title: T.newTab});
+  add.onclick = () => newFile();
+  bar.append(add);
+  bar.scrollLeft = x;
+}
+function showTab(i) {
+  active = i; const t = tabs[i];
+  cur = t.path; savedText = t.saved; ed.setState(t.state);
+  clearError(); refreshTitle(); saveDraft(); scheduleCheck();
+  $("tabs").children[i]?.scrollIntoView({block: "nearest", inline: "nearest"});
+}
+function switchTab(i) { if (i === active || !tabs[i]) return; syncTab(); showTab(i); }
+// Opens text in a new tab, or in the current one if it is an untouched empty buffer.
+function openTab(text, path) {
+  const t = mkTab(text, path);
+  if (cur == null && !dirty() && !ed.getText().trim()) { tabs[active] = t; showTab(active); }
+  else { syncTab(); tabs.push(t); showTab(tabs.length - 1); }
+}
+async function closeTab(i) {
+  if (i !== active) switchTab(i);
+  if (!(await confirmDirty())) return;
+  tabs.splice(active, 1);
+  if (!tabs.length) tabs.push(mkTab("", null));
+  showTab(Math.min(active, tabs.length - 1));
+}
 
 /* ---------- viewport / keyboard (iOS Safari) ---------- */
 const vv = window.visualViewport;
@@ -324,9 +390,12 @@ async function confirmDirty() {
   if (r === "s") return save();
   return r === "d";
 }
-function load(text, path) { ed.setText(text); cur = path; savedText = text; clearError(); refreshTitle(); saveDraft(); scheduleCheck(); }
-async function openFile(p) { if (p === cur && !dirty()) return closeSide(); if (!(await confirmDirty())) return; load(files[p].text, p); closeSide(); }
-async function newFile() { if (!(await confirmDirty())) return; load("", null); closeSide(); ed.focus(); }
+function openFile(p) {
+  syncTab(); closeSide();
+  const i = tabs.findIndex(t => t.path === p);
+  if (i >= 0) switchTab(i); else openTab(files[p].text, p);
+}
+function newFile() { closeSide(); openTab("", null); ed.focus(); }
 async function fileActions(p) {
   const r = await dialog({title: p, buttons: [{label: T.del, value: "d", danger: true}, {label: T.rename, value: "r"}, {label: T.open, value: "o", primary: true}]});
   if (r === "o") openFile(p);
@@ -336,11 +405,14 @@ async function fileActions(p) {
     if (!np || np === p) return;
     if (np in files) return toast(tr("exists", {f: np}).split(".")[0]);
     files[np] = files[p]; delete files[p]; saveFiles();
-    if (cur === p) cur = np; refreshTitle(); saveDraft();
+    syncTab(); for (const t of tabs) if (t.path === p) t.path = np;
+    cur = tabs[active].path; refreshTitle(); saveDraft();
   } else if (r === "d") {
     const ok = await dialog({title: T.del, text: tr("delQ", {f: p}), buttons: [{label: T.cancel, value: false}, {label: T.del, value: true, danger: true}]});
     if (!ok) return;
-    delete files[p]; saveFiles(); if (cur === p) cur = null; refreshTitle(); saveDraft();
+    delete files[p]; saveFiles();
+    syncTab(); for (const t of tabs) if (t.path === p) t.path = null;
+    cur = tabs[active].path; refreshTitle(); saveDraft();
   }
 }
 const ICON_MORE = '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>';
@@ -363,10 +435,12 @@ function renderFiles() {
 }
 $("fileIn").onchange = async e => {
   const list = [...e.target.files]; e.target.value = "";
-  if (!list.length || !(await confirmDirty())) return;
-  let last = null;
-  for (const f of list) { const p = uniqueName(normPath(f.name.replace(/\.(txt)$/i, "")) || "imported.py"); files[p] = {text: await f.text(), mtime: Date.now()}; last = p; }
-  saveFiles(); load(files[last].text, last); toast(tr("imported", {n: list.length}));
+  if (!list.length) return;
+  for (const f of list) {
+    const p = uniqueName(normPath(f.name.replace(/\.(txt)$/i, "")) || "imported.py");
+    files[p] = {text: await f.text(), mtime: Date.now()}; saveFiles(); openTab(files[p].text, p);
+  }
+  toast(tr("imported", {n: list.length}));
 };
 function openSide() { if (wide.matches) return; side.classList.add("drawer"); scrim.hidden = false; }
 function closeSide() { side.classList.remove("drawer"); scrim.hidden = true; }
@@ -398,7 +472,7 @@ async function showExamples() {
   const r = new Promise(res => EX.forEach(([name, code]) => { const b = el("button", {type: "button", textContent: name}); b.onclick = () => { dlg.close(); res(code); }; list.append(b); }));
   dialog({title: T.examples, body: list, buttons: [{label: T.close, value: null}]});
   const code = await r;
-  if (code != null && await confirmDirty()) { load(code, null); savedText = code; refreshTitle(); }
+  if (code != null) openTab(code, null);
 }
 
 async function copyText(s) {
@@ -470,7 +544,7 @@ const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.
 if (LOCAL) window.__ed = ed;
 const BASES = LOCAL ? ["/pyodide/"] : ["https://cdn.jsdelivr.net/pyodide/v314.0.7/full/", "https://cdn.jsdelivr.net/pyodide/v0.29.5/full/"];
 let worker = null, ready = false, running = false, mode = "replay", pyInfo = "";
-let replay = null;  // {code, queue, seed, produced}
+let replay = null, runTabId = 0;  // {code, queue, seed, produced}
 function setStat(s) { pystat.textContent = s; }
 function setRunning(r) { running = r; bRun.disabled = r || !ready; bStop.disabled = !r; if (!r) { inrow.hidden = true; replay = null; } }
 function startWorker() {
@@ -489,7 +563,7 @@ function onMsg(m) {
     case "need-input":
       if (m.replay) replay.produced = m.produced;
       inrow.hidden = false; openCon(); inp.value = ""; inp.focus(); break;
-    case "done": setStat(pyInfo.replace("Python ", "Python ")); if (m.status === "error") showError(m.line || 0);
+    case "done": setStat(pyInfo.replace("Python ", "Python ")); if (m.status === "error" && tabs[active].id === runTabId) showError(m.line || 0);
       sysLine(T.finished); setRunning(false); break;
     case "syntax": if (m.seq !== synSeq || running) break;
       if (m.line) showError(m.line, m.msg); else clearError(); break;
@@ -498,7 +572,7 @@ function onMsg(m) {
 function runCode() {
   if (!ready || running) return;
   out.replaceChildren(); clearError(); openCon(); setRunning(true);
-  const code = ed.getText();
+  const code = ed.getText(); runTabId = tabs[active].id;
   replay = {code, queue: [], seed: Math.floor(Math.random() * 2 ** 31), produced: 0};
   worker.postMessage({type: "run", code, queue: [], seed: mode === "replay" ? replay.seed : null, skip: 0});
 }
@@ -531,7 +605,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) saveD
 addEventListener("pagehide", saveDraft);
 $("ed").addEventListener("focusin", () => { if (narrow.matches && !running) app.classList.remove("conopen"); });
 
-refreshTitle();
+showTab(active);
 startWorker();
 // Offline support where the host allows a service worker (GitHub Pages); refused silently elsewhere.
 if ("serviceWorker" in navigator && !LOCAL) { try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch {} }

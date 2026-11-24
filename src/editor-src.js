@@ -58,25 +58,34 @@ const baseTheme = EditorView.theme({
 function create(parent, opts = {}) {
   const fontC = new Compartment();
   const fontTheme = px => EditorView.theme({"&": {fontSize: px + "px"}});
-  const view = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc: opts.doc || "",
-      extensions: [
-        lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), history(), foldGutter(),
-        drawSelection(), EditorState.allowMultipleSelections.of(true), indentOnInput(), indentUnit.of("    "),
-        syntaxHighlighting(hl), bracketMatching(), closeBrackets(), autocompletion(), highlightActiveLine(),
-        highlightSelectionMatches(), python(), errField, baseTheme, fontC.of(fontTheme(opts.fontSize || 16)),
-        EditorView.contentAttributes.of({autocapitalize: "off", autocorrect: "off", spellcheck: "false", "aria-label": "Python code"}),
-        keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...completionKeymap, indentWithTab,
-          {key: "Mod-Enter", run: () => { opts.onRun && opts.onRun(); return true; }},
-          {key: "Mod-s", run: () => { opts.onSave && opts.onSave(); return true; }}]),
-        EditorView.updateListener.of(u => { if (u.docChanged && opts.onChange) opts.onChange(); }),
-      ],
-    }),
-  });
+  let fontPx = opts.fontSize || 16;
+  // One EditorState per tab: each keeps its own text, undo history, selection and scroll.
+  const extensions = () => [
+    lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), history(), foldGutter(),
+    drawSelection(), EditorState.allowMultipleSelections.of(true), indentOnInput(), indentUnit.of("    "),
+    syntaxHighlighting(hl), bracketMatching(), closeBrackets(), autocompletion(), highlightActiveLine(),
+    highlightSelectionMatches(), python(), errField, baseTheme, fontC.of(fontTheme(fontPx)),
+    EditorView.contentAttributes.of({autocapitalize: "off", autocorrect: "off", spellcheck: "false", "aria-label": "Python code"}),
+    keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...completionKeymap, indentWithTab,
+      {key: "Mod-Enter", run: () => { opts.onRun && opts.onRun(); return true; }},
+      {key: "Mod-s", run: () => { opts.onSave && opts.onSave(); return true; }}]),
+    EditorView.updateListener.of(u => { if (u.docChanged && opts.onChange) opts.onChange(); }),
+  ];
+  const newState = doc => EditorState.create({doc: doc || "", extensions: extensions()});
+  const view = new EditorView({parent, state: newState(opts.doc)});
+  const scrollPos = new WeakMap();
   return {
     view,
+    newState,
+    getState: () => view.state,
+    setState(state) {
+      scrollPos.set(view.state, view.scrollDOM.scrollTop);
+      view.setState(state);
+      // a tab created before a font change still carries the old size
+      view.dispatch({effects: fontC.reconfigure(fontTheme(fontPx))});
+      const top = scrollPos.get(state);
+      requestAnimationFrame(() => { view.scrollDOM.scrollTop = top || 0; });
+    },
     getText: () => view.state.doc.toString(),
     setText(text) {
       view.dispatch({changes: {from: 0, to: view.state.doc.length, insert: text}, selection: {anchor: 0}, effects: setErr.of(null)});
@@ -92,7 +101,7 @@ function create(parent, opts = {}) {
       view.dispatch({selection: {anchor: ln.from}, effects: EditorView.scrollIntoView(ln.from, {y: "center"})});
       view.focus();
     },
-    setFontSize(px) { view.dispatch({effects: fontC.reconfigure(fontTheme(px))}); },
+    setFontSize(px) { fontPx = px; view.dispatch({effects: fontC.reconfigure(fontTheme(px))}); },
     undo: () => undo(view), redo: () => redo(view),
     focus: () => view.focus(),
   };
