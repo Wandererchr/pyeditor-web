@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0f1620">
+<title>PyEditor Web</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PyEditor">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a working tool that opens mid-use, calm and exact, like an IDE.
+   IDEA: a pocket workbench: code above, terminal below, keys you actually need.
+   PICTURE: the editor itself fills the screen; nothing drawn around it.
+   COLOUR and TYPE: Python's own blue and yellow on deep ink / white; IBM Plex Sans + JetBrains Mono.
+   LAYOUT: phone stacks editor/symbols/console; tablet puts console beside; desktop adds a file rail. */
+:root{--mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;--sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#fff;--panel:#f2f5f9;--ink:#15202b;--muted:#5b6b7c;--line:#d9e1ea;--code-bg:#fff;--code-ink:#1b2733;--gutter:#9aa8b6;
+  --sel:#cfe1f5;--active-line:#f3f7fb;--accent:#3776ab;--run:#ffd43b;--run-ink:#1d1a05;--danger:#d3264a;--err-line:#fde8ec;--con-bg:#f7f9fb;
+  --syn-kw:#0b4f9c;--syn-str:#2a7d1f;--syn-num:#b35900;--syn-com:#7a8794;--syn-fn:#7a5600;--syn-cls:#0a7f73;--syn-self:#b0306a;--syn-op:#4a5866;
+  --vh:100dvh;--top:0px;--conh:44px;color-scheme:light}
+:root.dk{color-scheme:dark;--bg:#0f1620;--panel:#162130;--ink:#e6edf3;--muted:#8fa1b3;--line:#253446;--code-bg:#0b1118;--code-ink:#dce4ec;--gutter:#4c5f73;
+  --sel:#23466e;--active-line:#111b26;--accent:#ffd43b;--danger:#ff5c7a;--err-line:#3a1621;--con-bg:#0a0f15;
+  --syn-kw:#7cb7ff;--syn-str:#a5e075;--syn-num:#ffb86b;--syn-com:#61768c;--syn-fn:#ffd43b;--syn-cls:#5fd4c4;--syn-self:#f28fad;--syn-op:#9fb3c8}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:16px/1.5 var(--sans);-webkit-text-size-adjust:100%}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{position:fixed;left:0;top:var(--top);width:100%;height:var(--vh);display:grid;
+  grid-template:"bar" auto "ed" minmax(0,1fr) "err" auto "sym" auto "con" var(--conh)/minmax(0,1fr);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+#app.conopen{--conh:min(46%,420px)}
+.bar{grid-area:bar;display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--panel)}
+.title{flex:1;display:flex;align-items:center;gap:8px;overflow:hidden;font-weight:600}
+.title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--run);flex:none;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--muted)}
+.dot[hidden]{display:none}
+.stat{font-size:13px;color:var(--muted);white-space:nowrap}
+.ib{width:44px;height:44px;border:0;border-radius:10px;background:transparent;display:grid;place-items:center;flex:none}
+.ib:hover{background:var(--line)}.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn{height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:disabled{opacity:.4;cursor:default}
+.run{background:var(--run);color:var(--run-ink);border-color:transparent}
+.stop{color:var(--danger)}
+.btn svg{width:16px;height:16px;fill:currentColor}
+#ed{grid-area:ed;overflow:hidden;background:var(--code-bg)}
+#errbar{grid-area:err;border:0;text-align:left;padding:8px 12px;background:var(--err-line);color:var(--danger);font-size:14px;font-weight:600;border-top:1px solid var(--danger)}
+#errbar[hidden]{display:none}
+#sym{grid-area:sym;display:flex;gap:6px;padding:6px 8px;overflow-x:auto;background:var(--panel);border-top:1px solid var(--line);scrollbar-width:none}
+#sym::-webkit-scrollbar{display:none}
+.key{flex:none;min-width:44px;height:40px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font:600 17px var(--mono)}
+.key:active{background:var(--run);color:var(--run-ink)}
+#con{grid-area:con;display:flex;flex-direction:column;background:var(--con-bg);border-top:1px solid var(--line);overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
+.conhead{display:flex;align-items:center;gap:4px;padding:0 4px 0 12px;min-height:44px;flex:none}
+.conhead .lbl{flex:1;border:0;background:none;text-align:left;font-weight:600;height:44px;display:flex;align-items:center;gap:8px;padding:0}
+.chev{transition:transform .2s}#app.conopen .chev{transform:rotate(180deg)}
+.conhead .ib{width:40px;height:40px}
+#out{flex:1;margin:0;padding:4px 12px 12px;overflow:auto;font-family:var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--code-ink)}
+#out .e{color:var(--danger)}#out .s{color:var(--muted);font-style:italic}#out .i{color:var(--accent);font-weight:600}
+#inrow{display:flex;gap:6px;padding:6px 8px;border-top:1px solid var(--line)}
+#inrow[hidden]{display:none}
+#inp{flex:1;height:44px;border-radius:10px;border:2px solid var(--accent);background:var(--bg);padding:0 12px;font:16px var(--mono)}
+#side{display:none;flex-direction:column;background:var(--panel);border-right:1px solid var(--line);overflow:hidden}
+#side.drawer{display:flex;position:fixed;z-index:20;left:0;top:var(--top);height:var(--vh);width:min(320px,86vw);box-shadow:0 10px 40px #0007;padding-top:env(safe-area-inset-top)}
+#scrim{position:fixed;inset:0;background:#0006;z-index:19}#scrim[hidden]{display:none}
+.sidehead{display:flex;align-items:center;gap:4px;padding:8px 8px 4px 14px;font-weight:600}
+.sidehead span{flex:1}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px 10px}
+.acts .btn{justify-content:center;font-size:14px;padding:0 8px}
+#files{flex:1;overflow:auto;padding:6px 6px 16px}
+.fold{font-size:13px;color:var(--muted);padding:10px 8px 2px;font-weight:600}
+.frow{display:flex;align-items:center;border-radius:8px}
+.frow.on{background:var(--sel)}
+.frow .fn{flex:1;text-align:left;border:0;background:none;padding:0 8px;height:40px;font:14px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frow .ib{width:40px;height:40px}
+.empty{color:var(--muted);font-size:14px;padding:10px}
+#menu{position:fixed;z-index:30;right:8px;min-width:230px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px #0005;padding:6px;display:grid}
+#menu[hidden]{display:none}
+#menu button{border:0;background:none;text-align:left;padding:0 12px;height:44px;border-radius:8px}
+#menu button:hover{background:var(--line)}
+#menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:18px;width:min(440px,calc(100vw - 24px));max-height:calc(var(--vh) - 24px)}
+dialog::backdrop{background:#0008}
+dialog h2{font-size:19px;margin:0 0 10px;line-height:1.2}
+dialog p{margin:0 0 12px;color:var(--muted)}
+dialog label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
+dialog input[type=text]{width:100%;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 12px;font:16px var(--mono)}
+dialog input[type=range]{width:100%;accent-color:var(--accent);height:32px}
+.dbtns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:16px}
+.dbtns .danger{color:var(--danger)}
+.list{display:grid;gap:4px}
+.list button{text-align:left;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 12px}
+.info{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.45}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:40;max-width:90vw;transition:opacity .25s}
+#toast[hidden]{display:none}
+.wideonly{display:none}
+@media (min-width:600px){
+  #app{grid-template:"bar bar" auto "ed con" minmax(0,1fr) "err con" auto "sym con" auto/minmax(0,1fr) minmax(300px,40%);padding-bottom:env(safe-area-inset-bottom)}
+  #con{border-top:0;border-left:1px solid var(--line);padding-bottom:0}
+  .lbl .chev{display:none}
+  .wideonly{display:inline-flex}
+}
+@media (min-width:1000px){
+  #app{grid-template:"bar bar bar" auto "side ed con" minmax(0,1fr) "side err con" auto "side sym con" auto/260px minmax(0,1fr) minmax(340px,38%)}
+  #side{display:flex;grid-area:side;position:static}
+  #side.drawer{position:static;box-shadow:none;width:auto;height:auto;padding-top:0}
+  #bFiles,#closeSide{display:none}
+}
+@media (max-width:420px){.btn .tx{display:none}.btn{padding:0 12px}.stat{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <button class="ib" id="bFiles" aria-label="Files"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></svg></button>
+    <div class="title"><span id="fname">untitled.py</span><i class="dot" id="dirty" hidden></i></div>
+    <span class="stat" id="pystat"></span>
+    <button class="ib wideonly" id="bUndo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button class="ib" id="bMenu" aria-label="Menu"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+    <button class="btn stop" id="bStop" disabled><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg><span class="tx" data-t="stop"></span></button>
+    <button class="btn run" id="bRun" disabled><svg viewBox="0 0 16 16"><path d="M4 2.5v11l9.5-5.5z"/></svg><span class="tx" data-t="run"></span></button>
+  </header>
+  <aside id="side">
+    <div class="sidehead"><span data-t="files"></span><button class="ib" id="closeSide" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="acts">
+      <button class="btn" data-a="new" data-t="new"></button>
+      <button class="btn" data-a="save" data-t="save"></button>
+      <button class="btn" data-a="import" data-t="import"></button>
+      <button class="btn" data-a="examples" data-t="examples"></button>
+    </div>
+    <div id="files"></div>
+  </aside>
+  <div id="ed"></div>
+  <button id="errbar" hidden></button>
+  <div id="sym" role="toolbar" aria-label="Symbols"></div>
+  <section id="con">
+    <div class="conhead">
+      <button class="lbl" id="conToggle"><span data-t="console"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 15 6-6 6 6"/></svg></button>
+      <button class="ib" id="conCopy" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg></button>
+      <button class="ib" id="conClear" aria-label="Clear"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+    </div>
+    <pre id="out" aria-live="polite"></pre>
+    <form id="inrow" hidden><input id="inp" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send"><button class="btn run" data-t="send"></button></form>
+  </section>
+</div>
+<div id="scrim" hidden></div>
+<div id="menu" hidden role="menu"></div>
+<dialog id="dlg"></dialog>
+<div id="toast" hidden></div>
+<input type="file" id="fileIn" accept=".py,.txt,text/x-python,text/plain" multiple hidden>
+<script src="editor.js"></script>
+<script>
+{
+const UK = /^uk|^ru|^be/i.test(navigator.language || "");
+const T = UK ? {
+  run:"Запустити",stop:"Стоп",files:"Файли",new:"Новий",save:"Зберегти",saveAs:"Зберегти як…",open:"Відкрити",examples:"Приклади",
+  import:"Імпорт",copyCode:"Копіювати код",settings:"Налаштування",console:"Консоль",send:"OK",undo:"Скасувати дію",redo:"Повторити",
+  copied:"Скопійовано",empty:"Порожньо",finished:"[Програму завершено]",stopped:"[Зупинено]",errorOn:"Помилка в рядку {n} — торкніться, щоб перейти",
+  syntaxOn:"Рядок {n}: {m}",loading:"Завантаження Python…",packages:"Пакети…",ready:"Python {v}",loadError:"Не вдалося завантажити Python: {m}",
+  restarting:"Перезапуск…",unsavedT:"Незбережені зміни",unsavedM:"Зберегти зміни у «{f}»?",discard:"Не зберігати",cancel:"Скасувати",
+  saved:"Збережено: {f}",nameL:"Ім'я файлу (можна з текою: lessons/loops.py)",rename:"Перейменувати",del:"Видалити",delQ:"Видалити «{f}»?",
+  noFiles:"Ще немає збережених файлів. Збережіть код або імпортуйте .py.",font:"Розмір шрифту: {n}px",symbols:"Панель символів",
+  symHint:"Символи через пробіл, у тому ж порядку, що на панелі",reset:"Скинути",untitled:"untitled.py",exists:"«{f}» вже існує. Перезаписати?",
+  overwrite:"Перезаписати",noStore:"Сховище браузера недоступне: файли не збережуться після закриття сторінки.",root:"Корінь",
+  modeJ:"input(): інтерактивний (програма чекає на ввід).",modeR:"input(): у цьому браузері програма після кожного вводу тихо перезапускається з уже введеними значеннями. Вивід і random не змінюються, але time/datetime можуть відрізнятися.",
+  storeInfo:"Файли зберігаються лише в цьому браузері на цьому пристрої.",badName:"Некоректне ім'я",copyFail:"Не вдалося скопіювати — виділіть текст вручну",
+  imported:"Імпортовано: {n}",files_n:"Файлів: {n}",close:"Закрити",sample:"# Ласкаво просимо до PyEditor Web!\n# Натисніть «Запустити» або Ctrl/⌘+Enter.\n\nname = input(\"Як вас звати? \")\nfor i in range(3):\n    print(f\"Привіт, {name}! #{i + 1}\")\n"
+} : {
+  run:"Run",stop:"Stop",files:"Files",new:"New",save:"Save",saveAs:"Save as…",open:"Open",examples:"Examples",
+  import:"Import",copyCode:"Copy code",settings:"Settings",console:"Console",send:"OK",undo:"Undo",redo:"Redo",
+  copied:"Copied",empty:"Empty",finished:"[Program finished]",stopped:"[Stopped]",errorOn:"Error on line {n} — tap to jump",
+  syntaxOn:"Line {n}: {m}",loading:"Loading Python…",packages:"Packages…",ready:"Python {v}",loadError:"Could not load Python: {m}",
+  restarting:"Restarting…",unsavedT:"Unsaved changes",unsavedM:"Save changes to “{f}”?",discard:"Don't save",cancel:"Cancel",
+  saved:"Saved: {f}",nameL:"File name (folders allowed: lessons/loops.py)",rename:"Rename",del:"Delete",delQ:"Delete “{f}”?",
+  noFiles:"No saved files yet. Save your code or import a .py file.",font:"Font size: {n}px",symbols:"Symbol bar",
+  symHint:"Symbols separated by spaces, in the order shown on the bar",reset:"Reset",untitled:"untitled.py",exists:"“{f}” already exists. Overwrite?",
+  overwrite:"Overwrite",noStore:"Browser storage is unavailable: files will not survive closing the page.",root:"Root",
+  modeJ:"input(): interactive (the program waits for input).",modeR:"input(): in this browser the program quietly re-runs after each entry with the values typed so far. Output and random stay the same; time/datetime may differ.",
+  storeInfo:"Files are stored only in this browser on this device.",badName:"Invalid name",copyFail:"Copy failed — select the text manually",
+  imported:"Imported: {n}",files_n:"Files: {n}",close:"Close",sample:"# Welcome to PyEditor Web!\n# Press Run or Ctrl/⌘+Enter.\n\nname = input(\"What's your name? \")\nfor i in range(3):\n    print(f\"Hello, {name}! #{i + 1}\")\n"
+};
+const tr = (k, o = {}) => (T[k] || k).replace(/\{(\w)\}/g, (_, x) => o[x] ?? "");
+document.documentElement.lang = UK ? "uk" : "en";
+document.querySelectorAll("[data-t]").forEach(el => el.textContent = tr(el.dataset.t));
+
+const EX = UK ? [
+ ["Привіт, світе","print(\"Привіт, світе!\")\nprint(\"Python працює прямо в браузері.\")\n"],
+ ["Змінні","name = \"Олена\"\nage = 21\nheight = 1.68\nprint(name, \"має\", age, \"років\")\nprint(\"Зріст:\", height, \"м\")\nprint(type(name), type(age), type(height))\n"],
+ ["Ввід даних","a = int(input(\"Перше число: \"))\nb = int(input(\"Друге число: \"))\nprint(\"Сума:\", a + b)\nprint(\"Добуток:\", a * b)\n"],
+ ["Умови","t = int(input(\"Температура надворі: \"))\nif t < 0:\n    print(\"Мороз — вдягайте шапку\")\nelif t < 15:\n    print(\"Прохолодно — візьміть куртку\")\nelse:\n    print(\"Тепло!\")\n"],
+ ["Цикли","for i in range(1, 6):\n    print(i, \"x\", i, \"=\", i * i)\n\nn = 10\nwhile n > 0:\n    print(n, end=\" \")\n    n -= 3\nprint()\n"],
+ ["Списки","fruits = [\"яблуко\", \"груша\", \"слива\"]\nfruits.append(\"вишня\")\nfor i, f in enumerate(fruits, 1):\n    print(i, f)\nprint(\"Відсортовано:\", sorted(fruits))\nprint(\"Квадрати:\", [x * x for x in range(6)])\n"],
+ ["Функції","def area(w, h=1):\n    \"\"\"Площа прямокутника.\"\"\"\n    return w * h\n\nprint(area(3, 4))\nprint(area(5))\n\ndef greet(*names):\n    for n in names:\n        print(\"Привіт,\", n)\n\ngreet(\"Іра\", \"Тарас\")\n"],
+ ["Помилки","def divide(a, b):\n    return a / b\n\ntry:\n    print(divide(10, 0))\nexcept ZeroDivisionError as e:\n    print(\"Перехоплено:\", e)\n\n# А ця помилка не перехоплена — дивіться банер унизу\nprint(divide(1, 0))\n"],
+] : [
+ ["Hello, world","print(\"Hello, world!\")\nprint(\"Python runs right in the browser.\")\n"],
+ ["Variables","name = \"Alice\"\nage = 21\nheight = 1.68\nprint(name, \"is\", age, \"years old\")\nprint(\"Height:\", height, \"m\")\nprint(type(name), type(age), type(height))\n"],
+ ["Input","a = int(input(\"First number: \"))\nb = int(input(\"Second number: \"))\nprint(\"Sum:\", a + b)\nprint(\"Product:\", a * b)\n"],
+ ["Conditions","t = int(input(\"Temperature outside: \"))\nif t < 0:\n    print(\"Freezing — wear a hat\")\nelif t < 15:\n    print(\"Chilly — take a jacket\")\nelse:\n    print(\"Warm!\")\n"],
+ ["Loops","for i in range(1, 6):\n    print(i, \"x\", i, \"=\", i * i)\n\nn = 10\nwhile n > 0:\n    print(n, end=\" \")\n    n -= 3\nprint()\n"],
+ ["Lists","fruits = [\"apple\", \"pear\", \"plum\"]\nfruits.append(\"cherry\")\nfor i, f in enumerate(fruits, 1):\n    print(i, f)\nprint(\"Sorted:\", sorted(fruits))\nprint(\"Squares:\", [x * x for x in range(6)])\n"],
+ ["Functions","def area(w, h=1):\n    \"\"\"Rectangle area.\"\"\"\n    return w * h\n\nprint(area(3, 4))\nprint(area(5))\n\ndef greet(*names):\n    for n in names:\n        print(\"Hello,\", n)\n\ngreet(\"Ann\", \"Taras\")\n"],
+ ["Errors","def divide(a, b):\n    return a / b\n\ntry:\n    print(divide(10, 0))\nexcept ZeroDivisionError as e:\n    print(\"Caught:\", e)\n\n# This one is not caught — see the banner below\nprint(divide(1, 0))\n"],
+];
+
+/* ---------- theme ---------- */
+const root = document.documentElement, mq = matchMedia("(prefers-color-scheme: dark)");
+const applyTheme = () => { const t = root.dataset.theme; root.classList.toggle("dk", t ? t === "dark" : mq.matches); };
+applyTheme(); mq.addEventListener?.("change", applyTheme);
+const themeObs = new MutationObserver(applyTheme); themeObs.observe(root, {attributes: true, attributeFilter: ["data-theme"]});
+
+/* ---------- storage (may be missing in sandboxed viewers) ---------- */
+const mem = {};
+const ls = {
+  ok: (() => { try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); return true; } catch { return false; } })(),
+  get(k, d) { try { const v = this.ok ? localStorage.getItem(k) : mem[k]; return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { const s = JSON.stringify(v); try { if (this.ok) localStorage.setItem(k, s); else mem[k] = s; } catch { mem[k] = s; } },
+};
+const K = {files: "pyeditor.files", prefs: "pyeditor.prefs", draft: "pyeditor.draft"};
+const DEF_SYM = ": = ( ) [ ] { } \" ' . , + - * / # < > _ !";
+let files = ls.get(K.files, {});
+let prefs = Object.assign({font: 16, symbols: DEF_SYM}, ls.get(K.prefs, {}));
+const saveFiles = () => ls.set(K.files, files), savePrefs = () => ls.set(K.prefs, prefs);
+
+/* ---------- elements ---------- */
+const $ = id => document.getElementById(id);
+const app = $("app"), out = $("out"), errbar = $("errbar"), inrow = $("inrow"), inp = $("inp");
+const bRun = $("bRun"), bStop = $("bStop"), pystat = $("pystat"), side = $("side"), scrim = $("scrim"), menu = $("menu"), dlg = $("dlg");
+const narrow = matchMedia("(max-width:599px)"), wide = matchMedia("(min-width:1000px)");
+
+/* ---------- editor ---------- */
+let cur = null, savedText = "", draftTimer = 0, synTimer = 0, synSeq = 0;
+const draft = ls.get(K.draft, null);
+const ed = PyEd.create($("ed"), {
+  doc: draft ? draft.text : T.sample, fontSize: prefs.font,
+  onChange() { refreshTitle(); clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 700); scheduleCheck(); },
+  onRun: () => runCode(), onSave: () => save(),
+});
+if (draft) { cur = draft.file || null; savedText = draft.saved ?? draft.text; if (cur && !(cur in files)) cur = null; }
+else savedText = T.sample;
+out.style.fontSize = prefs.font + "px";
+function saveDraft() { ls.set(K.draft, {text: ed.getText(), file: cur, saved: savedText}); }
+const dirty = () => ed.getText() !== savedText;
+function refreshTitle() { $("fname").textContent = cur || T.untitled; $("dirty").hidden = !dirty(); renderFiles(); }
+
+/* ---------- viewport / keyboard (iOS Safari) ---------- */
+const vv = window.visualViewport;
+function fit() {
+  root.style.setProperty("--vh", (vv ? vv.height : innerHeight) + "px");
+  root.style.setProperty("--top", (vv ? vv.offsetTop : 0) + "px");
+}
+if (vv) { vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); }
+fit();
+
+/* ---------- toast & dialogs ---------- */
+let toastT = 0;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2200); }
+function el(tag, props = {}, kids = []) { const e = Object.assign(document.createElement(tag), props); for (const k of [].concat(kids)) e.append(k); return e; }
+function dialog({title, text, body, buttons}) {
+  return new Promise(res => {
+    dlg.replaceChildren();
+    dlg.append(el("h2", {textContent: title}));
+    if (text) dlg.append(el("p", {textContent: text}));
+    if (body) dlg.append(body);
+    const row = el("div", {className: "dbtns"});
+    for (const b of buttons) {
+      const btn = el("button", {type: "button", className: "btn" + (b.primary ? " run" : "") + (b.danger ? " danger" : ""), textContent: b.label});
+      btn.onclick = () => { dlg.close(); res(b.value); };
+      row.append(btn);
+    }
+    dlg.append(row);
+    dlg.onclose = () => res(undefined);
+    dlg.showModal();
+    const f = dlg.querySelector("input[type=text]"); if (f) { f.focus(); f.select?.(); }
+  });
+}
+async function ask(title, label, value) {
+  const input = el("input", {type: "text", value, autocapitalize: "off", autocorrect: "off", spellcheck: false});
+  const body = el("div", {}, [el("label", {textContent: label}), input]);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); dlg.querySelector(".run").click(); } });
+  const r = await dialog({title, body, buttons: [{label: T.cancel, value: null}, {label: T.save, value: "ok", primary: true}]});
+  return r === "ok" ? input.value : null;
+}
+
+/* ---------- files ---------- */
+function normPath(name) {
+  let p = String(name || "").trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+  if (!p || p.split("/").some(s => !s.trim() || s === "." || s === "..")) return null;
+  return /\.py$/i.test(p) ? p : p + ".py";
+}
+function uniqueName(p) {
+  if (!(p in files)) return p;
+  const stem = p.replace(/\.py$/i, ""); let i = 1;
+  while (`${stem}_${i}.py` in files) i++;
+  return `${stem}_${i}.py`;
+}
+function writeFile(path) {
+  files[path] = {text: ed.getText(), mtime: Date.now()}; saveFiles();
+  cur = path; savedText = ed.getText(); refreshTitle(); saveDraft();
+  toast(tr("saved", {f: path}));
+}
+async function save() { if (cur) { writeFile(cur); return true; } return saveAs(); }
+async function saveAs() {
+  const v = await ask(T.saveAs, T.nameL, cur || T.untitled);
+  if (v == null) return false;
+  const p = normPath(v); if (!p) { toast(T.badName); return false; }
+  if (p !== cur && p in files) {
+    const ok = await dialog({title: T.overwrite, text: tr("exists", {f: p}), buttons: [{label: T.cancel, value: false}, {label: T.overwrite, value: true, primary: true}]});
+    if (!ok) return false;
+  }
+  writeFile(p); return true;
+}
+async function confirmDirty() {
+  if (!dirty()) return true;
+  const r = await dialog({title: T.unsavedT, text: tr("unsavedM", {f: cur || T.untitled}),
+    buttons: [{label: T.cancel, value: "c"}, {label: T.discard, value: "d", danger: true}, {label: T.save, value: "s", primary: true}]});
+  if (r === "s") return save();
+  return r === "d";
+}
+function load(text, path) { ed.setText(text); cur = path; savedText = text; clearError(); refreshTitle(); saveDraft(); scheduleCheck(); }
+async function openFile(p) { if (p === cur && !dirty()) return closeSide(); if (!(await confirmDirty())) return; load(files[p].text, p); closeSide(); }
+async function newFile() { if (!(await confirmDirty())) return; load("", null); closeSide(); ed.focus(); }
+async function fileActions(p) {
+  const r = await dialog({title: p, buttons: [{label: T.del, value: "d", danger: true}, {label: T.rename, value: "r"}, {label: T.open, value: "o", primary: true}]});
+  if (r === "o") openFile(p);
+  else if (r === "r") {
+    const v = await ask(T.rename, T.nameL, p); const np = v == null ? null : normPath(v);
+    if (v != null && !np) return toast(T.badName);
+    if (!np || np === p) return;
+    if (np in files) return toast(tr("exists", {f: np}).split(".")[0]);
+    files[np] = files[p]; delete files[p]; saveFiles();
+    if (cur === p) cur = np; refreshTitle(); saveDraft();
+  } else if (r === "d") {
+    const ok = await dialog({title: T.del, text: tr("delQ", {f: p}), buttons: [{label: T.cancel, value: false}, {label: T.del, value: true, danger: true}]});
+    if (!ok) return;
+    delete files[p]; saveFiles(); if (cur === p) cur = null; refreshTitle(); saveDraft();
+  }
+}
+const ICON_MORE = '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>';
+function renderFiles() {
+  const box = $("files"), paths = Object.keys(files).sort((a, b) => {
+    const da = a.includes("/"), db = b.includes("/");
+    return da !== db ? (da ? 1 : -1) : a.localeCompare(b);
+  });
+  box.replaceChildren();
+  if (!ls.ok) box.append(el("div", {className: "empty", textContent: T.noStore}));
+  if (!paths.length) { box.append(el("div", {className: "empty", textContent: T.noFiles})); return; }
+  let folder = null;
+  for (const p of paths) {
+    const i = p.lastIndexOf("/"), dir = i < 0 ? "" : p.slice(0, i), leaf = p.slice(i + 1);
+    if (dir !== folder) { folder = dir; if (dir) box.append(el("div", {className: "fold", textContent: dir + "/"})); }
+    const fn = el("button", {className: "fn", textContent: leaf, title: p}); fn.onclick = () => openFile(p);
+    const more = el("button", {className: "ib", ariaLabel: T.rename + " / " + T.del}); more.innerHTML = ICON_MORE; more.onclick = () => fileActions(p);
+    box.append(el("div", {className: "frow" + (p === cur ? " on" : "")}, [fn, more]));
+  }
+}
+$("fileIn").onchange = async e => {
+  const list = [...e.target.files]; e.target.value = "";
+  if (!list.length || !(await confirmDirty())) return;
+  let last = null;
+  for (const f of list) { const p = uniqueName(normPath(f.name.replace(/\.(txt)$/i, "")) || "imported.py"); files[p] = {text: await f.text(), mtime: Date.now()}; last = p; }
+  saveFiles(); load(files[last].text, last); toast(tr("imported", {n: list.length}));
+};
+function openSide() { if (wide.matches) return; side.classList.add("drawer"); scrim.hidden = false; }
+function closeSide() { side.classList.remove("drawer"); scrim.hidden = true; }
+$("bFiles").onclick = openSide; $("closeSide").onclick = closeSide; scrim.onclick = closeSide;
+
+/* ---------- menu ---------- */
+const ACTIONS = {
+  new: newFile, save: () => save(), saveAs: () => saveAs(), open: openSide, import: () => $("fileIn").click(),
+  examples: showExamples, copyCode: () => copyText(ed.getText()), settings: showSettings, undo: () => ed.undo(), redo: () => ed.redo(),
+};
+document.querySelectorAll("[data-a]").forEach(b => b.onclick = () => { closeSide(); ACTIONS[b.dataset.a](); });
+function buildMenu() {
+  menu.replaceChildren();
+  for (const k of ["new", "open", "save", "saveAs", "-", "examples", "import", "copyCode", "-", "undo", "redo", "settings"]) {
+    if (k === "-") { menu.append(el("hr")); continue; }
+    const b = el("button", {role: "menuitem", textContent: T[k]}); b.onclick = () => { menu.hidden = true; ACTIONS[k](); }; menu.append(b);
+  }
+}
+buildMenu();
+$("bMenu").onclick = e => {
+  e.stopPropagation();
+  const r = $("bMenu").getBoundingClientRect(); menu.style.top = r.bottom + 4 + "px"; menu.hidden = !menu.hidden;
+};
+document.addEventListener("click", e => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
+$("bUndo").onclick = () => ed.undo();
+
+async function showExamples() {
+  const list = el("div", {className: "list"});
+  const r = new Promise(res => EX.forEach(([name, code]) => { const b = el("button", {type: "button", textContent: name}); b.onclick = () => { dlg.close(); res(code); }; list.append(b); }));
+  dialog({title: T.examples, body: list, buttons: [{label: T.close, value: null}]});
+  const code = await r;
+  if (code != null && await confirmDirty()) { load(code, null); savedText = code; refreshTitle(); }
+}
+
+async function copyText(s) {
+  if (!s) return toast(T.empty);
+  try { await navigator.clipboard.writeText(s); toast(T.copied); } catch { toast(T.copyFail); }
+}
+
+/* ---------- symbol bar ---------- */
+const PAIRS = new Set(["()", "[]", "{}", "\"\"", "''", "<>"]);
+function renderSym() {
+  const bar = $("sym"); bar.replaceChildren();
+  const mk = (label, fn, aria) => { const b = el("button", {className: "key", textContent: label, ariaLabel: aria || label, type: "button"}); b.onclick = fn; bar.append(b); };
+  mk("⇥", () => ed.insert("    "), "Tab");
+  for (const s of prefs.symbols.trim().split(/\s+/).filter(Boolean)) mk(s, () => ed.insert(s, PAIRS.has(s) ? 1 : s.length));
+  mk("✎", showSettings, T.symbols);
+}
+// keep the editor focused (and the iOS keyboard up) when tapping keys
+$("sym").addEventListener("pointerdown", e => { if (e.target.closest(".key")) e.preventDefault(); });
+$("sym").addEventListener("mousedown", e => e.preventDefault());
+renderSym();
+
+async function showSettings() {
+  const lab = el("label", {textContent: tr("font", {n: prefs.font})});
+  const range = el("input", {type: "range", min: 10, max: 32, step: 1, value: prefs.font});
+  const before = prefs.font;
+  range.oninput = () => { const n = +range.value; lab.textContent = tr("font", {n}); ed.setFontSize(n); out.style.fontSize = n + "px"; };
+  const sym = el("input", {type: "text", value: prefs.symbols, autocapitalize: "off", autocorrect: "off", spellcheck: false});
+  const reset = el("button", {type: "button", className: "btn", textContent: T.reset, style: "margin-top:8px"});
+  reset.onclick = () => sym.value = DEF_SYM;
+  const info = el("div", {className: "info"}, [
+    el("div", {textContent: pyInfo || T.loading}),
+    el("div", {textContent: mode === "jspi" ? T.modeJ : T.modeR}),
+    el("div", {textContent: ls.ok ? T.storeInfo : T.noStore}),
+  ]);
+  const body = el("div", {}, [lab, range, el("label", {textContent: T.symbols + " — " + T.symHint}), sym, reset, info]);
+  const r = await dialog({title: T.settings, body, buttons: [{label: T.cancel, value: null}, {label: T.save, value: "ok", primary: true}]});
+  if (r === "ok") { prefs.font = +range.value; prefs.symbols = sym.value.trim() || DEF_SYM; savePrefs(); renderSym(); }
+  else { ed.setFontSize(before); out.style.fontSize = before + "px"; }
+}
+
+/* ---------- console ---------- */
+const MAX_OUT = 200000;
+function write(text, cls) {
+  const last = out.lastChild;
+  if (!cls && last && last.nodeType === 3) last.appendData(text);
+  else out.append(cls ? el("span", {className: cls, textContent: text}) : document.createTextNode(text));
+  if (out.textContent.length > MAX_OUT * 1.2) { while (out.textContent.length > MAX_OUT && out.firstChild) out.firstChild.remove(); }
+  out.scrollTop = out.scrollHeight;
+}
+function sysLine(msg) { const t = out.textContent; write((t && !t.endsWith("\n") ? "\n" : "") + msg + "\n", "s"); }
+$("conClear").onclick = () => out.replaceChildren();
+$("conCopy").onclick = () => copyText(out.textContent);
+$("conToggle").onclick = () => { if (narrow.matches) app.classList.toggle("conopen"); };
+const openCon = () => app.classList.add("conopen");
+
+/* ---------- errors ---------- */
+let errLine = 0;
+function showError(line, msg) {
+  if (!line) return;
+  errLine = line; ed.setError(line);
+  errbar.textContent = msg ? tr("syntaxOn", {n: line, m: msg}) : tr("errorOn", {n: line});
+  errbar.hidden = false;
+}
+function clearError() { errLine = 0; errbar.hidden = true; ed.setError(null); }
+errbar.onclick = () => errLine && ed.gotoLine(errLine);
+
+/* ---------- Python worker ---------- */
+const LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+if (LOCAL) window.__ed = ed;
+const BASES = LOCAL ? ["/pyodide/"] : ["https://cdn.jsdelivr.net/pyodide/v314.0.7/full/", "https://cdn.jsdelivr.net/pyodide/v0.29.5/full/"];
+let worker = null, ready = false, running = false, mode = "replay", pyInfo = "";
+let replay = null;  // {code, queue, seed, produced}
+function setStat(s) { pystat.textContent = s; }
+function setRunning(r) { running = r; bRun.disabled = r || !ready; bStop.disabled = !r; if (!r) { inrow.hidden = true; replay = null; } }
+function startWorker() {
+  ready = false; setRunning(false); setStat(T.loading);
+  worker = new Worker("worker.js", {type: "module"});
+  worker.onmessage = e => onMsg(e.data);
+  worker.onerror = e => { sysLine(tr("loadError", {m: e.message || "worker"})); setStat(""); };
+  worker.postMessage({type: "init", bases: BASES, forceMode: LOCAL && location.hash === "#replay" ? "replay" : null});
+}
+function onMsg(m) {
+  switch (m.type) {
+    case "status": setStat(m.key === "packages" ? T.packages : T.loading); break;
+    case "ready": ready = true; mode = m.mode; pyInfo = "Python " + m.version; setStat(tr("ready", {v: m.version})); setRunning(false); scheduleCheck(0); break;
+    case "load-error": sysLine(tr("loadError", {m: m.msg})); setStat("✕"); break;
+    case "out": write(m.text, m.err ? "e" : ""); break;
+    case "need-input":
+      if (m.replay) replay.produced = m.produced;
+      inrow.hidden = false; openCon(); inp.value = ""; inp.focus(); break;
+    case "done": setStat(pyInfo.replace("Python ", "Python ")); if (m.status === "error") showError(m.line || 0);
+      sysLine(T.finished); setRunning(false); break;
+    case "syntax": if (m.seq !== synSeq || running) break;
+      if (m.line) showError(m.line, m.msg); else clearError(); break;
+  }
+}
+function runCode() {
+  if (!ready || running) return;
+  out.replaceChildren(); clearError(); openCon(); setRunning(true);
+  const code = ed.getText();
+  replay = {code, queue: [], seed: Math.floor(Math.random() * 2 ** 31), produced: 0};
+  worker.postMessage({type: "run", code, queue: [], seed: mode === "replay" ? replay.seed : null, skip: 0});
+}
+inrow.onsubmit = e => {
+  e.preventDefault(); if (!running) return;
+  const v = inp.value; inrow.hidden = true;
+  write(v + "\n", "i");
+  if (mode === "jspi") worker.postMessage({type: "input", value: v});
+  else { replay.queue.push(v); worker.postMessage({type: "run", code: replay.code, queue: replay.queue, seed: replay.seed, skip: replay.produced}); }
+  if (!narrow.matches) ed.focus();
+};
+function stopCode() {
+  if (!running) return;
+  worker.terminate(); sysLine(T.stopped); setStat(T.restarting); startWorker();
+}
+bRun.onclick = runCode; bStop.onclick = stopCode;
+function scheduleCheck(delay = 600) {
+  clearTimeout(synTimer);
+  synTimer = setTimeout(() => { if (ready && !running) worker.postMessage({type: "check", code: ed.getText(), seq: ++synSeq}); }, delay);
+}
+
+/* ---------- shortcuts & lifecycle ---------- */
+document.addEventListener("keydown", e => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key === "Enter") { e.preventDefault(); runCode(); }
+  else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); e.shiftKey ? saveAs() : save(); }
+  else if (e.key === "Escape" && !menu.hidden) menu.hidden = true;
+});
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveDraft(); });
+addEventListener("pagehide", saveDraft);
+$("ed").addEventListener("focusin", () => { if (narrow.matches && !running) app.classList.remove("conopen"); });
+
+refreshTitle();
+startWorker();
+// Offline support where the host allows a service worker (GitHub Pages); refused silently elsewhere.
+if ("serviceWorker" in navigator && !LOCAL) { try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch {} }
+}
+</script>
+</body>
+</html>
